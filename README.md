@@ -6,7 +6,7 @@
 
 **The escape hatch for AI coding agents.**
 
-Every AI coding assistant (Cursor, Windsurf, Claude, Copilot, and others) runs inside a sandboxed terminal. That sandbox is intentional: it exists to prevent accidental damage. But it also creates a hard wall that stops your AI from doing real system-level work.
+Every AI coding assistant (Cursor, Codex, Claude Code, Antigravity, and others) runs inside a sandboxed terminal. That sandbox is intentional: it exists to prevent accidental damage. But it also creates a hard wall that stops your AI from doing real system-level work.
 
 Inside the sandbox, your AI **cannot**:
 
