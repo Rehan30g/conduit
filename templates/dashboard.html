@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conduit - AI Admin Bridge</title>
+  <!-- Google Fonts for clean interface rendering -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      /* Gray-Blue Theme */
+      --primary: #3b82f6;
+      --primary-active: #1d4ed8;
+      --primary-disabled: #1e293b;
+      --accent-teal: #14b8a6;
+      --accent-amber: #f59e0b;
+
+      /* Backgrounds & Panels */
+      --canvas: #090d16;
+      --surface-soft: #111827;
+      --surface-card: #151f32;
+      --surface-cream-strong: #1e293b;
+      --surface-dark: #030712;
+      --surface-dark-elevated: #1f2937;
+      --surface-dark-soft: #0b0f19;
+
+      /* Dividers */
+      --hairline: #1e293b;
+      --hairline-soft: #334155;
+
+      /* Typography colors */
+      --ink: #f8fafc;
+      --body-strong: #f1f5f9;
+      --body: #cbd5e1;
+      --muted: #94a3b8;
+      --muted-soft: #64748b;
+      --on-primary: #ffffff;
+      --on-dark: #f8fafc;
+      --on-dark-soft: #94a3b8;
+
+      /* Status indicators */
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+
+      /* Corner rounding scale */
+      --rounded-xs: 4px;
+      --rounded-sm: 6px;
+      --rounded-md: 8px;
+      --rounded-lg: 12px;
+      --rounded-xl: 16px;
+      --rounded-pill: 9999px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--canvas);
+      color: var(--body);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 64px 24px 96px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .wrap {
+      position: relative;
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .hd {
+      text-align: center;
+      padding-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 16px;
+    }
+
+    h1 {
+      font-family: 'Inter', sans-serif;
+      font-size: 48px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+
+    .tagline {
+      color: var(--body);
+      font-size: 16px;
+      line-height: 1.6;
+      max-width: 500px;
+      margin: 0 auto 16px;
+    }
+
+    /* Linear system diagram */
+    .bridge-container {
+      width: 100%;
+      max-width: 180px;
+      height: 48px;
+      margin: 8px auto 0;
+      opacity: 0.85;
+    }
+
+    .card {
+      background: var(--surface-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--rounded-lg);
+      padding: 32px;
+    }
+
+    .clabel {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* Critical Warning Panel */
+    .danger-banner {
+      background: #1e1313;
+      border: 1px solid var(--error);
+      color: #fca5a5;
+      padding: 16px 20px;
+      border-radius: var(--rounded-lg);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 12px;
+      text-align: left;
+      font-weight: 500;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .cta {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: var(--on-dark);
+      border-radius: var(--rounded-lg);
+      padding: 36px;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .cta-h {
+      font-family: 'Inter', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+      color: var(--on-dark);
+    }
+
+    .cta-sub {
+      color: var(--body);
+      font-size: 14.5px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .cta-sub a {
+      color: var(--primary);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      font-weight: 500;
+      transition: opacity 0.15s ease;
+    }
+
+    .cta-sub a:hover {
+      opacity: 0.8;
+    }
+
+    .prompt-box {
+      background: var(--surface-dark);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: var(--rounded-md);
+      padding: 18px 20px;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 13.5px;
+      color: #93c5fd;
+      line-height: 1.65;
+      margin-bottom: 24px;
+      user-select: all;
+      cursor: text;
+      word-break: break-all;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .brow {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 22px;
+      height: 40px;
+      border-radius: var(--rounded-md);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      line-height: 1;
+    }
+
+    .cta .btn-p {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .cta .btn-p:hover {
+      background: var(--primary-active);
+      transform: translateY(-1px);
+    }
+
+    .cta .btn-p:active {
+      transform: translateY(0);
+    }
+
+    .cta .btn-g {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--on-dark);
+      border: 1px solid var(--hairline-soft);
+    }
+
+    .cta .btn-g:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-g {
+      background: var(--canvas);
+      color: var(--ink);
+      border: 1px solid var(--hairline);
+    }
+
+    .btn-g:hover {
+      background: var(--surface-soft);
+      transform: translateY(-1px);
+    }
+
+    .btn-g:active {
+      background: var(--surface-card);
+      transform: translateY(0);
+    }
+
+    .tok-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--canvas);
+      border: 1px solid var(--hairline);
+      border-radius: var(--rounded-md);
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+
+    .tok-val {
+      flex: 1;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 14px;
+      color: var(--primary);
+      word-break: break-all;
+      font-weight: 500;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .hint code {
+      background: var(--surface-cream-strong);
+      color: var(--ink);
+      padding: 2px 6px;
+      border-radius: var(--rounded-xs);
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .stats {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .stat {
+      background: var(--surface-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--rounded-lg);
+      padding: 20px;
+      text-align: center;
+    }
+
+    .stat-v {
+      font-family: 'Inter', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    .stat-l {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .stags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .shell-tag,
+    .stags span,
+    .stags code {
+      display: inline-block;
+      background: var(--canvas) !important;
+      color: var(--ink) !important;
+      border: 1px solid var(--hairline) !important;
+      padding: 6px 14px !important;
+      border-radius: var(--rounded-pill) !important;
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      margin: 4px !important;
+      transition: all 0.15s ease;
+    }
+
+    .shell-tag:hover,
+    .stags span:hover {
+      background: var(--surface-soft) !important;
+      border-color: var(--muted-soft) !important;
+      transform: translateY(-1px);
+    }
+
+    .footer {
+      background: var(--surface-dark);
+      border-radius: var(--rounded-lg);
+      padding: 32px;
+      text-align: center;
+      color: var(--on-dark-soft);
+      font-size: 13px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin-top: 16px;
+      border: 1px solid var(--hairline);
+    }
+
+    .footer-logo {
+      color: var(--on-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .footer a {
+      color: var(--on-dark-soft);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+
+    .footer a:hover {
+      color: var(--on-dark);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--surface-card);
+      color: var(--on-dark);
+      padding: 12px 24px;
+      border-radius: var(--rounded-md);
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      opacity: 0;
+      z-index: 10000;
+      pointer-events: none;
+      border: 1px solid var(--primary);
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <!-- Danger Warning Banner -->
+    <div class="danger-banner" id="danger-banner">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        style="flex-shrink:0; margin-top:2px;">
+        <path
+          d="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <div>
+        <strong>Always Allow mode is on.</strong> The agent will execute shell commands automatically without requesting
+        approval. Restart the Conduit session to reset this option.
+      </div>
+    </div>
+
+    <!-- Header -->
+    <div class="hd">
+
+      <!-- App Logo with static SVG fallback -->
+      <div class="logo-container"
+        style="margin-bottom: 24px; display: inline-flex; justify-content: center; align-items: center; position: relative;">
+        <img src="/conduit.png" width="80" height="80" alt="Conduit Logo"
+          style="image-rendering: pixelated;"
+          onerror="this.style.display='none'; document.getElementById('conduit-fallback').style.display='flex';">
+        <div id="conduit-fallback"
+          style="display: none; width: 80px; height: 80px; justify-content: center; align-items: center; color: var(--primary);">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+        </div>
+      </div>
+
+      <h1>Conduit</h1>
+      <p class="tagline">
+        Local secure system command bridge. Safely run operations outside your agent sandbox with full host privilege.
+      </p>
+
+      <!-- Linear Integration Diagram -->
+      <div class="bridge-container">
+        <svg viewBox="0 0 160 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+          <path d="M30 20 H130" stroke="var(--primary)" stroke-width="1.5" stroke-dasharray="3 3" />
+          <circle cx="80" cy="20" r="8" stroke="var(--primary)" stroke-width="1.5" fill="var(--canvas)" />
+          <circle cx="80" cy="20" r="3" fill="var(--primary)" />
+          <circle cx="20" cy="20" r="10" stroke="var(--ink)" stroke-width="1.5" fill="var(--surface-card)" />
+          <path d="M17 20 H23 M20 17 V23" stroke="var(--ink)" stroke-width="1.5" />
+          <circle cx="140" cy="20" r="10" stroke="var(--ink)" stroke-width="1.5" fill="var(--surface-card)" />
+          <path d="M136 20 H144" stroke="var(--ink)" stroke-width="1.5" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Call-to-action Section -->
+    <div class="cta">
+      <div class="cta-h">Connect your AI agent</div>
+      <div class="cta-sub">
+        Paste this handshake prompt into your AI agent chat. The agent will read
+        <a href="/agent.md">agent.md</a>
+        automatically to retrieve the schema and start work.
+      </div>
+      <div class="prompt-box" id="prompt-text">[[COPY_PROMPT]]</div>
+      <div class="brow">
+        <button class="btn btn-p" id="copy-btn" onclick="copyPrompt()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"
+            style="margin-top: -1px;">
+            <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          Copy Handshake Prompt
+        </button>
+        <a href="/agent.md" target="_blank" class="btn btn-g">View agent.md &rarr;</a>
+      </div>
+    </div>
+
+    <!-- Session Key Card -->
+    <div class="card">
+      <div class="clabel">Session API Token</div>
+      <div class="tok-row">
+        <span class="tok-val" id="tok-disp">[[TOKEN]]</span>
+        <button class="btn btn-g" id="tok-btn" onclick="copyToken()"
+          style="padding: 0 16px; font-size: 13px;">Copy</button>
+      </div>
+      <p class="hint">Use this authorization header on custom requests: <code>Authorization: Bearer [[TOKEN]]</code></p>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-v" id="uptime">—</div>
+        <div class="stat-l">Uptime</div>
+      </div>
+      <div class="stat">
+        <div class="stat-v" id="queue">0</div>
+        <div class="stat-l">Queue Depth</div>
+      </div>
+      <div class="stat">
+        <div class="stat-v">[[PLATFORM]]</div>
+        <div class="stat-l">Target Platform</div>
+      </div>
+    </div>
+
+    <!-- Shell Profiles -->
+    <div class="card">
+      <div class="clabel">Configured Shell Profiles</div>
+      <div class="stags">[[SHELLS_HTML]]</div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="footer-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); margin-right: 2px;">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+        Conduit Engine
+      </div>
+      <div class="footer-links">
+        <a href="/status">System Status</a>
+        <a href="/history">Task History</a>
+        <a href="/shells">Shell Manager</a>
+        <a href="/agent.md">Agent Schema</a>
+      </div>
+      <div style="font-size: 11px; opacity: 0.55; font-family: 'JetBrains Mono', monospace; margin-top: 8px;">
+        v2.0.0 &middot; Secure Bridge Node
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast notification box -->
+  <div id="toast" class="toast">Copied to clipboard!</div>
+
+  <script>
+    // Server-injected values
+    const CONFIG = {
+      token: "[[TOKEN]]",
+      copyPrompt: [[COPY_PROMPT_JSON]]
+    };
+
+    function showNotification(message) {
+      const toast = document.getElementById("toast");
+      if (!toast) return;
+      toast.textContent = message;
+      toast.classList.add("show");
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 3000);
+    }
+
+    function copyTextToClipboard(text) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+          showNotification("Copied to clipboard!");
+        } else {
+          showNotification("Failed to copy parameter.");
+        }
+      } catch (err) {
+        showNotification("Could not execute copy.");
+      }
+      document.body.removeChild(textArea);
+    }
+
+    function copyPrompt() {
+      const el = document.getElementById("prompt-text");
+      if (el) copyTextToClipboard(el.innerText);
+    }
+
+    function copyToken() {
+      const el = document.getElementById("tok-disp");
+      if (el) copyTextToClipboard(el.innerText);
+    }
+  </script>
+  <script src="/dashboard.js"></script>
+
+  <!-- Server disconnection state overlay -->
+  <div id="offline-overlay"
+    style="display:none; position:fixed; inset:0; background:var(--surface-dark); z-index:9999; flex-direction:column; align-items:center; justify-content:center; padding: 32px; text-align: center;">
+    <div style="color: var(--error); margin-bottom: 24px;">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path
+          d="M12 9v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </div>
+    <h1
+      style="font-family: 'Inter', sans-serif; font-size: 32px; font-weight: 700; color: var(--on-dark); letter-spacing: -0.5px; margin-bottom: 12px;">
+      Server Disconnected</h1>
+    <p
+      style="color: var(--on-dark-soft); font-family: 'Inter', sans-serif; font-size: 15px; max-width: 440px; line-height: 1.6; margin-bottom: 24px;">
+      The Conduit local service has stopped. You can safely close this browser window now.
+    </p>
+    <button onclick="window.close()" class="btn"
+      style="background: var(--surface-dark-elevated); color: var(--on-dark); border: 1px solid rgba(255, 255, 255, 0.15); font-weight: 600; font-family: 'Inter', sans-serif; padding: 10px 20px; border-radius: var(--rounded-md); cursor: pointer;">
+      Close Tab
+    </button>
+  </div>
+
+</body>
+
+</html>
