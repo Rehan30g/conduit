@@ -16,7 +16,7 @@ fi
 # Check for root privileges
 if [ "$EUID" -ne 0 ]; then
     echo "🔒 Requesting root privileges via sudo..."
-    sudo "$PYTHON_CMD" "$SCRIPT_DIR/run_conduit.py"
+    sudo "$PYTHON_CMD" "$SCRIPT_DIR/run_conduit.py" "$@"
 else
-    "$PYTHON_CMD" "$SCRIPT_DIR/run_conduit.py"
+    "$PYTHON_CMD" "$SCRIPT_DIR/run_conduit.py" "$@"
 fi

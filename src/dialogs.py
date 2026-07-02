@@ -62,11 +62,34 @@ class ApprovalDialog:
         bf = tkfont.Font(family="Segoe UI", size=10)
         cf = tkfont.Font(family="Consolas", size=10)
 
-        # 1. Title Label
-        tk.Label(self.root,
+        # Load the icon image
+        from src.config import TEMPLATES_DIR
+        icon_path = os.path.join(TEMPLATES_DIR, "conduit.png")
+        self.icon_image = None
+        if os.path.exists(icon_path):
+            try:
+                # Tkinter PhotoImage can load PNG files natively in Python 3
+                full_img = tk.PhotoImage(file=icon_path)
+                # Subsample 512x512 to 32x32 (512 / 16 = 32)
+                self.icon_image = full_img.subsample(16, 16)
+            except Exception as e:
+                logging.warning(f"Could not load dialog icon: {e}")
+
+        # 1. Header Frame (centered container for Title and Icon)
+        header_frame = tk.Frame(self.root, bg="#ffffff")
+        header_frame.pack(fill=tk.X, pady=6)
+
+        center_container = tk.Frame(header_frame, bg="#ffffff")
+        center_container.pack(anchor="center")
+
+        if self.icon_image:
+            icon_label = tk.Label(center_container, image=self.icon_image, bg="#ffffff")
+            icon_label.pack(side=tk.LEFT, padx=(0, 10))
+
+        tk.Label(center_container,
                  text="AI Agent Command Authorization Request",
                  fg="#1f2937", bg="#ffffff", font=tf, pady=12
-        ).pack(fill=tk.X)
+        ).pack(side=tk.LEFT)
 
         # 2. Info Label
         self.info = tk.Label(self.root,

@@ -58,6 +58,18 @@ chmod +x conduit.sh
 
 After launch, your browser opens at `http://127.0.0.1:40404/`. Copy the prompt and send it to your AI.
 
+### Command-line Options
+
+Conduit supports configuration flags to customize how the server runs:
+
+* `--always-allow`: Auto-approves execution requests without prompt popups.
+* `--headless`: Bypasses opening the dashboard browser tab and implies `--always-allow`. Use this for headless environments (like VPS or remote servers).
+
+Example:
+```bash
+python run_conduit.py --headless
+```
+
 ## Web Dashboard
 
 Conduit hosts a local web dashboard at `http://127.0.0.1:40404/`. It shows:
@@ -132,7 +144,7 @@ def conduit(command, shell="powershell", cwd=None, env=None):
         return json.loads(r.read().decode("utf-8"))
 ```
 
-Or have the AI visit `http://127.0.0.1:40404/agent.md` — it receives a fully self-contained guide with the live token already embedded.
+Or have the AI visit `http://127.0.0.1:40404/agent.md`, which serves a fully self-contained guide with the live token already embedded.
 
 ## Security Design
 

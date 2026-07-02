@@ -9,6 +9,7 @@ HOST = "127.0.0.1"
 TOKEN = str(uuid.uuid4())
 START_TIME = time.time()
 ALWAYS_ALLOW = False
+HEADLESS = False
 
 # Directory resolution
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] - 2026-07-02
+
+### Added
+- **Command-line Arguments**: Added support for `--always-allow` and `--headless` flags to customize starting behaviour.
+- **Headless Mode**: `--headless` flag starts Conduit without opening the web browser at launch, allowing it to run smoothly on remote server configurations (e.g., VPS). Implies `--always-allow`.
+- **CLI Parameter Forwarding**: Updated launch scripts (`conduit.bat` and `conduit.sh`) to forward all trailing command line parameters directly to python execution.
+- **GUI Icon Integration**: Integrated a subsampled 32x32 version of the custom logo (`conduit.png`) directly into the main Tkinter GUI approval dialogue header.
+- **GUI Detection & Enforcement**: Added automated display environment detection at boot. If no GUI/screen is available (e.g., VPS over raw SSH), the script terminates cleanly with an instruction to use the `--headless` flag.
+
 ## [2.0.0] - 2026-07-01
 
 This release marks a complete rewrite and modularization of Conduit, evolving it from a single-file script to a robust, clean package architecture with major developer workflow enhancements.
