@@ -45,12 +45,19 @@ class ApprovalDialog:
         y = (self.root.winfo_screenheight() // 2) - (h // 2)
         self.root.geometry(f'{w}x{h}+{x}+{y}')
         
-        # Disable minimize/maximize buttons (only show close 'X' button)
+        # Disable minimize/maximize buttons
         self.root.resizable(False, False)
-        try:
-            self.root.attributes("-toolwindow", True)
-        except Exception:
-            pass
+        if IS_WINDOWS:
+            try:
+                import ctypes
+                hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+                style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)  # GWL_STYLE
+                style &= ~0x00020000  # WS_MINIMIZEBOX
+                style &= ~0x00010000  # WS_MAXIMIZEBOX
+                ctypes.windll.user32.SetWindowLongW(hwnd, -16, style)
+                ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0027)  # SWP_FRAMECHANGED
+            except Exception:
+                pass
 
         # Show window now that geometry is applied
         self.root.deiconify()
@@ -70,32 +77,33 @@ class ApprovalDialog:
             try:
                 # Tkinter PhotoImage can load PNG files natively in Python 3
                 full_img = tk.PhotoImage(file=icon_path)
-                # Subsample 512x512 to 32x32 (512 / 16 = 32)
-                self.icon_image = full_img.subsample(16, 16)
+                # Subsample 512x512 to ~51x51 (512 / 10 = 51)
+                self.icon_image = full_img.subsample(10, 10)
             except Exception as e:
                 logging.warning(f"Could not load dialog icon: {e}")
 
-        # 1. Header Frame (centered container for Title and Icon)
+        # 1. Header Frame (left-aligned container for Icon and stacked Text)
         header_frame = tk.Frame(self.root, bg="#ffffff")
-        header_frame.pack(fill=tk.X)
-
-        center_container = tk.Frame(header_frame, bg="#ffffff")
-        center_container.pack(anchor="center", pady=12)
+        header_frame.pack(fill=tk.X, padx=25, pady=(20, 5))
 
         if self.icon_image:
-            icon_label = tk.Label(center_container, image=self.icon_image, bg="#ffffff", bd=0)
-            icon_label.grid(row=0, column=0, padx=(0, 12), sticky="news")
+            icon_label = tk.Label(header_frame, image=self.icon_image, bg="#ffffff", bd=0)
+            icon_label.pack(side=tk.LEFT, padx=(0, 15), anchor="nw")
 
-        tk.Label(center_container,
-                 text="AI Agent Command Authorization Request",
-                 fg="#1f2937", bg="#ffffff", font=tf, bd=0
-        ).grid(row=0, column=1, sticky="news")
+        # Text container for vertical stacking next to the icon
+        text_container = tk.Frame(header_frame, bg="#ffffff")
+        text_container.pack(side=tk.LEFT, fill=tk.Y, expand=True, anchor="nw")
 
-        # 2. Info Label
-        self.info = tk.Label(self.root,
+        title_label = tk.Label(text_container,
+                               text="AI Agent Command Authorization Request",
+                               fg="#1f2937", bg="#ffffff", font=tf, bd=0, anchor="w")
+        title_label.pack(fill=tk.X, anchor="w", pady=(2, 4))
+
+        # 2. Info Label (now stacked vertically next to the icon)
+        self.info = tk.Label(text_container,
                              text=f"Shell: {self.shell} | Auto-denying in {self.timeout}s...",
-                             fg="#4b5563", bg="#ffffff", font=bf)
-        self.info.pack(fill=tk.X, pady=2)
+                             fg="#4b5563", bg="#ffffff", font=bf, bd=0, anchor="w")
+        self.info.pack(fill=tk.X, anchor="w")
 
         # 3. Action Buttons Frame (packed from BOTTOM first to prevent command frame overlap)
         bf2 = tk.Frame(self.root, bg="#ffffff")
