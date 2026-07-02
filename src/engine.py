@@ -105,7 +105,7 @@ def queue_worker():
             approved = True
             logging.info(f"[Engine] Auto-approved {req.id} via Always Allow session rule.")
         else:
-            prompt_res = run_gui_prompt(req.command, req.shell)
+            prompt_res = run_gui_prompt(req.command, req.shell, req.cwd, req.env)
             if prompt_res == "ALWAYS":
                 src.config.ALWAYS_ALLOW = True
                 approved = True

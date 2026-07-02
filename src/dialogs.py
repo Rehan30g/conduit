@@ -6,6 +6,9 @@ import shutil
 import logging
 from src.config import IS_WINDOWS
 
+def _truncate(text, limit):
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
 # Enable High-DPI awareness on Windows to prevent blurriness (ensures sharp rendering)
 if IS_WINDOWS:
     try:
@@ -18,9 +21,11 @@ if IS_WINDOWS:
             pass
 
 class ApprovalDialog:
-    def __init__(self, command, shell, timeout=60):
+    def __init__(self, command, shell, cwd=None, env=None, timeout=60):
         self.command = command
         self.shell = shell
+        self.cwd = cwd
+        self.env = env
         self.timeout = timeout
         self.result = False
 
@@ -105,6 +110,23 @@ class ApprovalDialog:
                              fg="#4b5563", bg="#ffffff", font=bf, bd=0, anchor="w")
         self.info.pack(fill=tk.X, anchor="w")
 
+        # 2b. Surface cwd/env overrides so the user can spot a request that
+        # is trying to run a plain-looking command under a tampered
+        # environment (e.g. a hijacked PATH or LD_PRELOAD). Truncated to a
+        # fixed length: the window is non-resizable, and a request with many
+        # (or long) env keys must not be able to grow this label enough to
+        # push the command text out of view.
+        details = []
+        if self.cwd:
+            details.append(f"cwd: {_truncate(self.cwd, 80)}")
+        if self.env:
+            details.append(f"env overrides: {_truncate(', '.join(sorted(self.env.keys())), 120)}")
+        if details:
+            tk.Label(text_container, text=" | ".join(details),
+                     fg="#b45309", bg="#ffffff", font=bf, bd=0, anchor="w",
+                     wraplength=520, justify=tk.LEFT
+            ).pack(fill=tk.X, anchor="w", pady=(2, 0))
+
         # 3. Action Buttons Frame (packed from BOTTOM first to prevent command frame overlap)
         bf2 = tk.Frame(self.root, bg="#ffffff")
         bf2.pack(fill=tk.X, pady=15, side=tk.BOTTOM)
@@ -180,21 +202,28 @@ class ApprovalDialog:
             self.root.destroy()
 
 
-def run_gui_prompt(command, shell, timeout=60):
+def run_gui_prompt(command, shell, cwd=None, env=None, timeout=60):
     try:
         import tkinter
-        return ApprovalDialog(command, shell, timeout).result
+        return ApprovalDialog(command, shell, cwd, env, timeout).result
     except Exception as e:
         logging.warning(f"Tkinter unavailable ({e}). Trying platform fallback...")
-        return run_fallback_prompt(command, shell, timeout)
+        return run_fallback_prompt(command, shell, cwd, env, timeout)
 
 
-def run_fallback_prompt(command, shell, timeout=60):
+def run_fallback_prompt(command, shell, cwd=None, env=None, timeout=60):
+    details = f"Shell: {shell}"
+    if cwd:
+        details += f"\ncwd: {cwd}"
+    if env:
+        details += f"\nenv overrides: {', '.join(sorted(env.keys()))}"
+
     if sys.platform == "darwin":
         try:
             esc = command.replace('"', '\\"').replace('\n', '\\r')
+            details_esc = details.replace('"', '\\"').replace('\n', '\\r')
             script = (
-                f'display dialog "Conduit Authorization\\r\\rShell: {shell}\\rCommand:\\r{esc}" '
+                f'display dialog "Conduit Authorization\\r\\r{details_esc}\\rCommand:\\r{esc}" '
                 f'with title "Conduit" buttons {{"No","Yes"}} default button "No" giving up after {timeout}'
             )
             r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
@@ -207,20 +236,24 @@ def run_fallback_prompt(command, shell, timeout=60):
             r = subprocess.run([
                 "zenity", "--question",
                 "--title=Conduit Authorization",
-                f"--text=Authorize command in {shell}?\n\n{command}",
+                f"--text=Authorize command?\n\n{details}\n\n{command}",
                 f"--timeout={timeout}"
             ])
             return r.returncode == 0
         except Exception:
             pass
 
-    return run_terminal_fallback(command, shell, timeout)
+    return run_terminal_fallback(command, shell, cwd, env, timeout)
 
 
-def run_terminal_fallback(command, shell, timeout):
+def run_terminal_fallback(command, shell, cwd, env, timeout):
     print("\n" + "="*70)
     print("[!] CONDUIT AUTHORIZATION REQUEST (Terminal Fallback)")
     print(f"Shell: {shell}")
+    if cwd:
+        print(f"cwd: {cwd}")
+    if env:
+        print(f"env overrides: {', '.join(sorted(env.keys()))}")
     print("-" * 70)
     print(command)
     print("-" * 70)

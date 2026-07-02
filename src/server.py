@@ -2,11 +2,20 @@ import os
 import sys
 import json
 import time
+import hmac
 import logging
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import src.config
 from src.config import HOST, PORT, TOKEN, START_TIME, TEMPLATES_DIR, AVAILABLE_SHELLS, DEFAULT_SHELL
 from src.engine import COMMAND_QUEUE, HISTORY, HISTORY_LOCK, CommandRequest
+
+# Requests must claim one of these Host headers, otherwise they are rejected.
+# This defeats DNS-rebinding attacks that try to make a remote page look
+# same-origin to the browser while actually talking to our localhost server.
+ALLOWED_HOSTS = {f"{HOST}:{PORT}", f"localhost:{PORT}", f"127.0.0.1:{PORT}"}
+
+# Maximum accepted request body size (bytes) for POST /
+MAX_BODY_BYTES = 1 * 1024 * 1024  # 1 MiB
 
 # ──────────────────────────────────────────────────────
 # TEMPLATE LOADER
@@ -41,29 +50,41 @@ class ConduitHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
+
+    def check_host(self):
+        # Reject requests whose Host header doesn't match this server, which
+        # blocks DNS-rebinding attempts to bypass same-origin/localhost
+        # protections from a malicious remote web page.
+        host = self.headers.get("Host", "")
+        if host not in ALLOWED_HOSTS:
+            self.send_json(403, {"status": "ERROR", "message": "Invalid Host header."})
+            return False
+        return True
 
     def check_auth(self):
         auth = self.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
             self.send_json(401, {"status": "ERROR", "message": "Missing Authorization header."})
             return False
-        if auth[7:].strip() != TOKEN:
+        if not hmac.compare_digest(auth[7:].strip(), TOKEN):
             self.send_json(401, {"status": "ERROR", "message": "Invalid API token."})
             return False
         return True
 
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        # No CORS headers are issued: Conduit is only meant to be called by a
+        # same-origin dashboard or a server-side (non-browser) AI agent, and
+        # granting cross-origin access here previously let any web page read
+        # the session token from /agent.md and replay it against POST /.
+        self.send_response(204)
         self.end_headers()
 
     # ── GET ────────────────────────────────────────────
     def do_GET(self):
+        if not self.check_host():
+            return
         path = self.path.split("?")[0]
 
         # Web dashboard
@@ -100,7 +121,6 @@ class ConduitHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(body)
             return
@@ -114,7 +134,6 @@ class ConduitHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "image/png")
                 self.send_header("Content-Length", str(len(body)))
-                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as e:
@@ -131,7 +150,6 @@ class ConduitHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "image/png")
                 self.send_header("Content-Length", str(len(body)))
-                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(body)
             except Exception as e:
@@ -139,7 +157,12 @@ class ConduitHandler(BaseHTTPRequestHandler):
                 self.send_json(404, {"status": "ERROR", "message": "Image not found."})
             return
 
-        # Agent integration guide
+        # Agent integration guide.
+        # NOTE: intentionally unauthenticated (an agent needs it to learn the
+        # token in the first place) but must never carry a CORS header — this
+        # response is the only place the raw session token is exposed, and a
+        # permissive Access-Control-Allow-Origin here previously let any
+        # malicious web page fetch() it and replay it against POST /.
         if path == "/agent.md":
             content = load_template("agent_template.md")
             content = content.replace("[[TOKEN]]", TOKEN)
@@ -151,7 +174,6 @@ class ConduitHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/markdown; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(body)
             return
@@ -187,6 +209,9 @@ class ConduitHandler(BaseHTTPRequestHandler):
 
     # ── POST ───────────────────────────────────────────
     def do_POST(self):
+        if not self.check_host():
+            return
+
         if self.path != "/":
             self.send_json(404, {"status": "ERROR", "message": "Endpoint not found."})
             return
@@ -194,7 +219,16 @@ class ConduitHandler(BaseHTTPRequestHandler):
         if not self.check_auth():
             return
 
-        length = int(self.headers.get("Content-Length", 0))
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            self.send_json(400, {"status": "ERROR", "message": "Invalid Content-Length header."})
+            return
+
+        if length < 0 or length > MAX_BODY_BYTES:
+            self.send_json(413, {"status": "ERROR", "message": "Request body too large."})
+            return
+
         raw_body = self.rfile.read(length)
 
         command = ""; shell = DEFAULT_SHELL; cwd = None; env = None
@@ -222,12 +256,18 @@ class ConduitHandler(BaseHTTPRequestHandler):
                                  "message": "Queue full. Try again shortly."})
             return
 
-        req.event.wait()
+        # Safety-net timeout: the approval dialog itself auto-denies after
+        # 60s and execution is capped at 300s, but this guards against the
+        # worker dying unexpectedly and leaving the connection hung forever.
+        if not req.event.wait(timeout=400):
+            self.send_json(504, {"status": "ERROR",
+                                 "message": "Timed out waiting for command processing."})
+            return
         self.send_json(200, req.response or {"status": "ERROR",
                                              "message": "Internal processing failure."})
 
 def run_server():
-    server = HTTPServer((HOST, PORT), ConduitHandler)
+    server = ThreadingHTTPServer((HOST, PORT), ConduitHandler)
     logging.info(f"[HTTP] Listening on http://{HOST}:{PORT}/")
     try:
         server.serve_forever()
