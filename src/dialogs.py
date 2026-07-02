@@ -77,19 +77,19 @@ class ApprovalDialog:
 
         # 1. Header Frame (centered container for Title and Icon)
         header_frame = tk.Frame(self.root, bg="#ffffff")
-        header_frame.pack(fill=tk.X, pady=6)
+        header_frame.pack(fill=tk.X)
 
         center_container = tk.Frame(header_frame, bg="#ffffff")
-        center_container.pack(anchor="center")
+        center_container.pack(anchor="center", pady=12)
 
         if self.icon_image:
-            icon_label = tk.Label(center_container, image=self.icon_image, bg="#ffffff")
-            icon_label.pack(side=tk.LEFT, padx=(0, 10))
+            icon_label = tk.Label(center_container, image=self.icon_image, bg="#ffffff", bd=0)
+            icon_label.grid(row=0, column=0, padx=(0, 12), sticky="news")
 
         tk.Label(center_container,
                  text="AI Agent Command Authorization Request",
-                 fg="#1f2937", bg="#ffffff", font=tf, pady=12
-        ).pack(side=tk.LEFT)
+                 fg="#1f2937", bg="#ffffff", font=tf, bd=0
+        ).grid(row=0, column=1, sticky="news")
 
         # 2. Info Label
         self.info = tk.Label(self.root,
