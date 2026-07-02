@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
 - **GUI Window Decoration**: Completely hid the minimize and maximize window buttons on Windows using Win32 API window style flags to display a cleaner titlebar with only the close (X) button.
 - **GUI Detection & Enforcement**: Added automated display environment detection at boot. If no GUI/screen is available (e.g., VPS over raw SSH), the script terminates cleanly with an instruction to use the `--headless` flag.
 
+### Changed
+- **Dashboard Disconnected Behavior**: Removed the automatic tab close attempt (`window.close()`) and the "Close Tab" button from the disconnected overlay as modern browsers block programmatic closing of tabs not opened via scripts.
+
 ## [2.0.0] - 2026-07-01
 
 This release marks a complete rewrite and modularization of Conduit, evolving it from a single-file script to a robust, clean package architecture with major developer workflow enhancements.

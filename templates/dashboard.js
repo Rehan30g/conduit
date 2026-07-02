@@ -45,8 +45,6 @@ function refresh() {
       }
     })
     .catch(() => {
-      // Attempt to close the browser tab automatically
-      window.close();
       // Fallback: display the offline/disconnected screen overlay
       const overlay = document.getElementById('offline-overlay');
       if (overlay) {
