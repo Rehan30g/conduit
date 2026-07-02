@@ -97,7 +97,7 @@ def main():
 
     print("==================================================")
     print("                    CONDUIT                       ")
-    print("      AI Admin Execution Bridge v2.1.0           ")
+    print("      AI Admin Execution Bridge v2.1.1           ")
     print("==================================================")
     if src.config.ALWAYS_ALLOW:
         print("[!] ALWAYS ALLOW MODE: ACTIVE (Auto-approving commands)")

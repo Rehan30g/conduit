@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.1] - 2026-07-02
+
+### Changed
+- **GUI Dialog Layout**: Redesigned the header layout in the authorization dialog to place the icon on the left side with title text and shell info stacked vertically on the right.
+- **GUI Window Decoration**: Completely hid the minimize and maximize window buttons on Windows using Win32 API window style flags to display a cleaner titlebar with only the close (X) button.
+
 ## [2.1.0] - 2026-07-02
 
 ### Added
