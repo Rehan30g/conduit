@@ -1,11 +1,45 @@
 # Conduit — AI Agent Integration Guide
 
-You are reading this because the developer has enabled **Conduit**, a local admin execution bridge.
-This allows you to run commands with **full Administrator/root privileges**, bypassing the sandbox
-restrictions imposed by your AI coding environment.
+You are reading this because the developer has enabled **Conduit** on their own machine, a local,
+human-supervised execution channel. It is a tool the developer installed and started themselves,
+running outside your normal working directory, so they can hand you administrator/root-level
+commands to run on their behalf — with themselves approving every single one before it executes.
 
-> **Human-in-the-loop**: Every command you send must be approved by the developer via a GUI dialog
-> before it executes. You will not be able to run anything without their explicit click.
+> **Human-in-the-loop is the whole point of this tool.** Every command you send is queued and shown
+> to the developer in a GUI dialog on their screen, which defaults to **No**. Nothing runs unless
+> they read it and actively click **Yes**. Unanswered requests auto-deny after 60 seconds. You
+> cannot execute anything the developer does not personally see and approve first — treat this like
+> asking a human sysadmin to run a command for you, because that is functionally what it is.
+
+Use this the same way you'd use any other elevated capability the developer explicitly grants:
+propose the specific command needed and why, then send it through Conduit and wait for the
+approve/deny result. It doesn't change what you're allowed to do — it's the developer's mechanism
+for saying "yes, run that" for actions their normal environment can't perform on its own.
+
+---
+
+## Two Ways to Connect
+
+Conduit accepts either. Both hit the same queue, the same approval dialog, the same daemon.
+
+| | **HTTP API** (this page) | **MCP** |
+|---|---|---|
+| Setup | None — just read this page | One-time entry in your client's MCP config |
+| How you call it | You make the HTTP request yourself, e.g. `urllib`/`curl` | Native `run_command` tool in your tool list |
+| Best for | Agents without MCP support, or one-off use | Claude Code, Cursor, Claude Desktop, any MCP client |
+
+**If you already see a `conduit` MCP server in your tools, use that instead of this page** — it's
+the same bridge with a cleaner interface, and you don't need the token below.
+
+Otherwise, this page is the HTTP path: **no install, no plugin, no tool registration.** It's a
+single plain HTTP endpoint on `127.0.0.1` — the developer's own machine — that you reach with
+whatever general-purpose HTTP or code execution you already have. One ordinary POST per command,
+the same as calling any REST API. The safety property comes entirely from the human approval step
+on the other end, not from any special trust in the endpoint.
+
+To set up the MCP route instead, the developer runs `python run_conduit.py --mcp-config` and pastes
+the result into their client. The MCP bridge reads the live token from `~/.conduit/session.json`
+itself, so their config stays valid across restarts.
 
 ---
 

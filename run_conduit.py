@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import HOST, PORT, TOKEN, AVAILABLE_SHELLS, DEFAULT_SHELL, IS_WINDOWS
 from src.engine import queue_worker
 from src.server import run_server
+from src.session import write_session, clear_session
 
 def is_gui_available():
     # 1. On Windows:
@@ -63,12 +64,53 @@ def is_gui_available():
             return True
         return False
 
+def mcp_config_dict():
+    """The client-side MCP entry. The bridge finds the live token by itself."""
+    return {
+        "mcpServers": {
+            "conduit": {
+                "command": sys.executable,
+                "args": [os.path.abspath(__file__), "--mcp"],
+            }
+        }
+    }
+
+
+def print_mcp_config():
+    import json
+    print("Add this to your AI client's MCP config, then restart the client:")
+    print()
+    print(json.dumps(mcp_config_dict(), indent=2))
+    print()
+    print("Claude Code  : claude mcp add conduit -- "
+          f"{sys.executable} {os.path.abspath(__file__)} --mcp")
+    print("Cursor       : ~/.cursor/mcp.json")
+    print("Claude Desktop: claude_desktop_config.json")
+    print()
+    print("Conduit itself must be running (this script, elevated) for the bridge to work.")
+    print("The token is picked up automatically from ~/.conduit/session.json, so the")
+    print("config above stays valid across restarts.")
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Conduit - AI Admin Execution Bridge")
     parser.add_argument("--always-allow", action="store_true", help="Always allow execution requests without asking for approval")
     parser.add_argument("--headless", action="store_true", help="Run without opening dashboard in browser or showing GUI popups (implies --always-allow)")
+    parser.add_argument("--mcp", action="store_true", help="Run as an MCP stdio bridge to the running Conduit daemon (your AI client spawns this, you don't run it by hand)")
+    parser.add_argument("--mcp-config", action="store_true", help="Print the MCP config to paste into your AI client, then exit")
     args = parser.parse_args()
+
+    # The bridge is a stdio proxy, not the daemon: no banner, no GUI, no browser.
+    # stdout belongs to the JSON-RPC stream from here on.
+    if args.mcp:
+        from src.mcp_server import run_mcp_server
+        run_mcp_server()
+        return
+
+    if args.mcp_config:
+        print_mcp_config()
+        return
 
     import src.config
     if args.always_allow:
@@ -120,6 +162,13 @@ def main():
     print(f"Shells     : {', '.join(AVAILABLE_SHELLS)}")
     print(f"Default    : {DEFAULT_SHELL}")
     print("==================================================")
+    print("Connect an AI agent either way:")
+    print(f"  HTTP API : point it at http://{HOST}:{PORT}/agent.md")
+    print("  MCP      : python run_conduit.py --mcp-config")
+    print("==================================================")
+
+    # Publish the session so the MCP bridge can find this daemon and its token.
+    write_session(TOKEN, HOST, PORT)
 
     # Start HTTP server on background thread
     threading.Thread(target=run_server, daemon=True).start()
@@ -138,6 +187,8 @@ def main():
         print("\n[*] Shutdown by user. Goodbye.")
     except Exception as e:
         logging.error(f"Critical error: {e}")
+    finally:
+        clear_session()
 
 if __name__ == "__main__":
     main()

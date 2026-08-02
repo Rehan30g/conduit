@@ -156,6 +156,19 @@ class ConduitHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        # Ready-to-paste MCP client config
+        if path == "/mcp.json":
+            script = os.path.join(os.path.dirname(TEMPLATES_DIR), "run_conduit.py")
+            self.send_json(200, {
+                "mcpServers": {
+                    "conduit": {
+                        "command": sys.executable,
+                        "args": [script, "--mcp"],
+                    }
+                }
+            })
+            return
+
         # Status
         if path == "/status":
             self.send_json(200, {
