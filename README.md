@@ -30,15 +30,15 @@ Your AI connects either over plain HTTP or as an **MCP server** — see [Connect
 ## How It Works
 
 <p align="center">
-  <img src="templates/conduit_flow.png" width="860" alt="Conduit Architecture Diagram">
+  <img src="templates/conduit_flow.svg" width="860" alt="Conduit Architecture Diagram">
 </p>
 
 1. Start Conduit in an elevated terminal (or double-click `conduit.bat` on Windows).
 2. Conduit prints a session token and opens the web dashboard in your browser.
-3. Copy the one-click prompt from the dashboard and paste it into your AI agent chat.
-4. The AI reads `http://127.0.0.1:40404/agent.md`, gets full integration instructions with the token.
-5. AI sends privileged commands via HTTP. Each one triggers a GUI dialog on your screen.
-6. You approve or deny. Output returns to the AI in structured JSON.
+3. Connect your agent, either way — paste the dashboard's prompt into the chat so the agent reads `http://127.0.0.1:40404/agent.md` and talks HTTP, or set it up once as an [MCP server](#option-1--mcp-recommended-for-claude-code-cursor-claude-desktop) and let it use the `run_command` tool directly.
+4. The agent proposes a privileged command. It lands in Conduit's queue.
+5. A dialog appears on your screen showing the exact command. It defaults to No.
+6. You approve or deny. Output returns to the agent in structured JSON — or `DENIED`, and nothing ran.
 
 <p align="center">
   <img src="templates/screenshot_approval.png" width="560" alt="Conduit Approval Dialog">
@@ -199,4 +199,4 @@ Or have the AI visit `http://127.0.0.1:40404/agent.md`, which serves a fully sel
 
 ## Credits
 
-Vibe coded by [@Rehan30g](https://github.com/Rehan30g)
+Vibe coded by [@Rehan30g](https://github.com/Rehan30g) and Claude Opus 5.

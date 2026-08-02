@@ -12,6 +12,7 @@ from src.config import HOST, PORT, TOKEN, AVAILABLE_SHELLS, DEFAULT_SHELL, IS_WI
 from src.engine import queue_worker
 from src.server import run_server
 from src.session import write_session, clear_session
+from src.settings_panel import start_panel, panel_available
 
 def is_gui_available():
     # 1. On Windows:
@@ -166,12 +167,25 @@ def main():
     print(f"  HTTP API : point it at http://{HOST}:{PORT}/agent.md")
     print("  MCP      : python run_conduit.py --mcp-config")
     print("==================================================")
+    if panel_available():
+        print("Press ENTER in this window for the settings panel")
+        print("  (toggle Always-Allow, status, history, quit)")
+        print("==================================================")
 
-    # Publish the session so the MCP bridge can find this daemon and its token.
+    # Bind before publishing anything. write_session() used to run first, so a
+    # second Conduit instance that failed to bind (port already taken) would
+    # still overwrite the real daemon's session file with its own token,
+    # silently locking out the MCP bridge and the dashboard.
+    from src.server import bind_server
+    bound = bind_server()
+    if bound is None:
+        print(f"\n[!] ERROR: port {PORT} is already in use. Conduit may already be running.")
+        print("    Close the other instance, then start this one again.")
+        sys.exit(1)
+
     write_session(TOKEN, HOST, PORT)
 
-    # Start HTTP server on background thread
-    threading.Thread(target=run_server, daemon=True).start()
+    threading.Thread(target=run_server, args=(bound,), daemon=True).start()
 
     # Open dashboard in browser
     if not src.config.HEADLESS:
@@ -179,6 +193,11 @@ def main():
             webbrowser.open(f"http://{HOST}:{PORT}/")
         except Exception:
             pass
+
+    # Interactive settings panel on a daemon thread. It no-ops without a TTY,
+    # and is unreachable in --mcp mode because that branch returns above.
+    start_panel(is_admin=is_admin, mcp_config=mcp_config_dict,
+                gui_check=is_gui_available)
 
     # Run queue worker on main thread (Tkinter requirements)
     try:

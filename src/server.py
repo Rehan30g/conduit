@@ -2,11 +2,19 @@ import os
 import sys
 import json
 import time
+import hmac
 import logging
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import src.config
 from src.config import HOST, PORT, TOKEN, START_TIME, TEMPLATES_DIR, AVAILABLE_SHELLS, DEFAULT_SHELL
 from src.engine import COMMAND_QUEUE, HISTORY, HISTORY_LOCK, CommandRequest
+
+# Only these may appear in the Host header. Anything else is a rebinding attempt.
+ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}", f"[::1]:{PORT}"}
+ALLOWED_ORIGINS = {f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}", f"http://[::1]:{PORT}"}
+
+# 60 s approval window + 300 s execution ceiling + slack.
+REQUEST_TIMEOUT = 400
 
 # ──────────────────────────────────────────────────────
 # TEMPLATE LOADER
@@ -41,7 +49,6 @@ class ConduitHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -50,20 +57,47 @@ class ConduitHandler(BaseHTTPRequestHandler):
         if not auth.startswith("Bearer "):
             self.send_json(401, {"status": "ERROR", "message": "Missing Authorization header."})
             return False
-        if auth[7:].strip() != TOKEN:
+        if not hmac.compare_digest(auth[7:].strip(), TOKEN):
             self.send_json(401, {"status": "ERROR", "message": "Invalid API token."})
             return False
         return True
 
+    def check_local(self):
+        # Two browser-borne attacks have to be shut out here, because the only
+        # thing guarding root on this machine is a token sitting in a page the
+        # browser can otherwise be talked into fetching.
+        #
+        # 1. DNS rebinding. A page on evil.test whose record flips to 127.0.0.1
+        #    becomes *same-origin* with us, so CORS stops applying entirely. The
+        #    Host header still carries the attacker's hostname, so reject on it.
+        # 2. Plain cross-origin reads. Any page the developer happens to have
+        #    open could otherwise fetch /agent.md or / and scrape the token.
+        host = self.headers.get("Host", "")
+        if host not in ALLOWED_HOSTS:
+            logging.warning(f"[HTTP] Rejected request with foreign Host header: {host!r}")
+            self.send_json(403, {"status": "ERROR",
+                                 "message": "Conduit only serves 127.0.0.1."})
+            return False
+
+        origin = self.headers.get("Origin")
+        if origin and origin not in ALLOWED_ORIGINS:
+            logging.warning(f"[HTTP] Rejected cross-origin request from: {origin!r}")
+            self.send_json(403, {"status": "ERROR",
+                                 "message": "Cross-origin requests are not allowed."})
+            return False
+        return True
+
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.end_headers()
+        # Deliberately no Access-Control-Allow-* headers: nothing legitimate talks
+        # to Conduit cross-origin, and granting the preflight is what would let a
+        # web page send the Authorization header at all.
+        self.send_json(403, {"status": "ERROR",
+                             "message": "Cross-origin requests are not allowed."})
 
     # ── GET ────────────────────────────────────────────
     def do_GET(self):
+        if not self.check_local():
+            return
         path = self.path.split("?")[0]
 
         # Web dashboard
@@ -200,6 +234,9 @@ class ConduitHandler(BaseHTTPRequestHandler):
 
     # ── POST ───────────────────────────────────────────
     def do_POST(self):
+        if not self.check_local():
+            return
+
         if self.path != "/":
             self.send_json(404, {"status": "ERROR", "message": "Endpoint not found."})
             return
@@ -235,12 +272,54 @@ class ConduitHandler(BaseHTTPRequestHandler):
                                  "message": "Queue full. Try again shortly."})
             return
 
-        req.event.wait()
+        # Bounded: 60 s approval window plus the 5 minute execution ceiling, with
+        # slack. Waiting forever means one wedged command holds the caller open
+        # with no way to recover.
+        if not req.event.wait(timeout=REQUEST_TIMEOUT):
+            self.send_json(504, {
+                "status": "ERROR",
+                "request_id": req.id,
+                "message": "Timed out waiting for approval and execution. The command may "
+                           "still be running — do not retry it blindly.",
+            })
+            return
+
         self.send_json(200, req.response or {"status": "ERROR",
                                              "message": "Internal processing failure."})
 
-def run_server():
-    server = HTTPServer((HOST, PORT), ConduitHandler)
+
+class ConduitTCPServer(ThreadingHTTPServer):
+    # HTTPServer defaults this to True. On POSIX that only lets a restarted
+    # server rebind a socket stuck in TIME_WAIT; on Windows, SO_REUSEADDR also
+    # lets an unrelated process bind an address that is already LISTENING,
+    # silently splitting traffic between two daemons with two different
+    # tokens instead of the second bind failing. Disabling it restores "port
+    # already in use" as an actual error on every platform, which is what the
+    # already-running check below depends on.
+    allow_reuse_address = False
+
+
+def bind_server():
+    """Bind the listening socket, or return None if the port is already taken."""
+    try:
+        return ConduitTCPServer((HOST, PORT), ConduitHandler)
+    except OSError as e:
+        logging.error(f"[HTTP] Could not bind {HOST}:{PORT} — {e}")
+        return None
+
+
+def run_server(server=None):
+    # Threaded: a single approval dialog blocks its request for up to 60 s, and
+    # on a single-threaded server that stalled *everything* — the dashboard's
+    # status poll, a second agent, the MCP bridge — and left the documented
+    # 5-slot queue permanently empty.
+    if server is None:
+        server = bind_server()
+    if server is None:
+        print(f"\n[!] ERROR: port {PORT} is already in use. Conduit may already be running.")
+        print("    Close the other instance, then start this one again.")
+        os._exit(1)
+
     logging.info(f"[HTTP] Listening on http://{HOST}:{PORT}/")
     try:
         server.serve_forever()
