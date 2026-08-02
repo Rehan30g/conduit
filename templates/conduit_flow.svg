@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 896" width="1000" height="896" preserveAspectRatio="xMidYMid meet" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SF Mono', Menlo, monospace" shape-rendering="crispEdges">
+
+  <!-- ============ opaque background (mode-proof) ============ -->
+  <rect x="0" y="0" width="1000" height="896" fill="#0e1013"/>
+
+  <!-- ============ title block ============ -->
+  <g shape-rendering="auto">
+    <path d="M 830 56 V 76 H 850 V 56" fill="none" stroke="#eceef1" stroke-width="7" stroke-linejoin="miter" stroke-linecap="butt"/>
+  </g>
+  <text x="968" y="76" text-anchor="end" font-size="19" font-weight="bold" letter-spacing="2" fill="#eceef1">CONDUIT</text>
+  <text x="968" y="100" text-anchor="end" font-size="15" fill="#737d8a">how it works</text>
+
+  <!-- ============ BAND 1 : AI SANDBOX ============ -->
+  <rect x="32" y="36" width="652" height="332" fill="#15181d" stroke="#3f4854" stroke-width="1.5" stroke-dasharray="5 5"/>
+  <text x="52" y="68" font-size="16" letter-spacing="1.6" fill="#737d8a">AI SANDBOX &#183; UNPRIVILEGED</text>
+
+  <!-- agent -->
+  <rect x="56" y="84" width="604" height="84" fill="#1c2027" stroke="#4f5866" stroke-width="1.5"/>
+  <text x="80" y="118" font-size="19" font-weight="bold" fill="#eceef1">AI CODING AGENT</text>
+  <text x="636" y="118" text-anchor="end" font-size="15" fill="#737d8a">no sudo &#183; no UAC &#183; no admin</text>
+  <text x="80" y="146" font-size="15" fill="#a9b2bd">Claude Code / Cursor / Antigravity / Codex</text>
+
+  <!-- fork: agent -> two transports -->
+  <g shape-rendering="auto">
+    <path d="M 358 168 V 190" fill="none" stroke="#8b95a3" stroke-width="2"/>
+    <path d="M 200 212 V 190 H 516 V 212" fill="none" stroke="#8b95a3" stroke-width="2"/>
+    <circle cx="358" cy="190" r="4" fill="#8b95a3"/>
+    <polygon points="195,201 205,201 200,212" fill="#8b95a3"/>
+    <polygon points="511,201 521,201 516,212" fill="#8b95a3"/>
+  </g>
+
+  <!-- transport A : HTTP -->
+  <rect x="56" y="212" width="288" height="128" fill="#1c2027" stroke="#4f5866" stroke-width="1.5"/>
+  <text x="200" y="246" text-anchor="middle" font-size="19" font-weight="bold" fill="#eceef1">HTTP API</text>
+  <text x="200" y="278" text-anchor="middle" font-size="15" fill="#a9b2bd">agent POSTs JSON to</text>
+  <text x="200" y="300" text-anchor="middle" font-size="15" fill="#a9b2bd">127.0.0.1:40404 with a</text>
+  <text x="200" y="322" text-anchor="middle" font-size="15" fill="#737d8a">Bearer session token</text>
+
+  <!-- transport B : MCP -->
+  <rect x="372" y="212" width="288" height="128" fill="#1c2027" stroke="#4f5866" stroke-width="1.5"/>
+  <text x="516" y="246" text-anchor="middle" font-size="19" font-weight="bold" fill="#eceef1">MCP</text>
+  <text x="516" y="278" text-anchor="middle" font-size="15" fill="#a9b2bd">your AI client spawns</text>
+  <text x="516" y="300" text-anchor="middle" font-size="15" fill="#a9b2bd">run_conduit.py --mcp</text>
+  <text x="516" y="322" text-anchor="middle" font-size="15" fill="#737d8a">thin bridge, runs nothing</text>
+
+  <!-- both transports converge, cross the sandbox floor -->
+  <g shape-rendering="auto">
+    <path d="M 200 340 V 400 H 516 V 340" fill="none" stroke="#8b95a3" stroke-width="2"/>
+    <path d="M 358 400 V 484" fill="none" stroke="#8b95a3" stroke-width="2"/>
+    <circle cx="358" cy="400" r="4" fill="#8b95a3"/>
+    <polygon points="353,473 363,473 358,484" fill="#8b95a3"/>
+  </g>
+  <text x="358" y="388" text-anchor="middle" font-size="15" fill="#737d8a">one daemon, one queue</text>
+
+  <!-- ============ BAND 2 : DEVELOPER MACHINE ============ -->
+  <rect x="32" y="428" width="936" height="432" fill="#15181d" stroke="#5f6a79" stroke-width="2"/>
+  <text x="52" y="460" font-size="16" letter-spacing="1.6" fill="#8b95a3">YOUR MACHINE &#183; ELEVATED</text>
+
+  <!-- daemon -->
+  <rect x="180" y="484" width="356" height="152" fill="#1c2027" stroke="#4f5866" stroke-width="1.5"/>
+  <text x="358" y="518" text-anchor="middle" font-size="19" font-weight="bold" fill="#eceef1">CONDUIT DAEMON</text>
+  <text x="358" y="544" text-anchor="middle" font-size="15" fill="#a9b2bd">python run_conduit.py</text>
+  <line x1="212" y1="564" x2="504" y2="564" stroke="#333a44" stroke-width="1"/>
+  <text x="358" y="588" text-anchor="middle" font-size="15" fill="#737d8a">runs outside the sandbox</text>
+  <text x="358" y="610" text-anchor="middle" font-size="15" fill="#737d8a">queue &#183; 5 pending max</text>
+
+  <!-- daemon -> gate -->
+  <g shape-rendering="auto">
+    <path d="M 536 560 H 596" fill="none" stroke="#8b95a3" stroke-width="2"/>
+    <polygon points="585,555 585,565 596,560" fill="#8b95a3"/>
+  </g>
+
+  <!-- ===== THE HUMAN GATE (centerpiece) ===== -->
+  <rect x="596" y="460" width="280" height="200" fill="#201a0e" stroke="#f2a83b" stroke-width="2"/>
+  <rect x="596" y="460" width="280" height="5" fill="#f2a83b"/>
+  <text x="736" y="500" text-anchor="middle" font-size="21" font-weight="bold" letter-spacing="0.5" fill="#f2a83b">HUMAN APPROVAL</text>
+  <text x="736" y="524" text-anchor="middle" font-size="15" fill="#d9c9a6">every single command</text>
+
+  <!-- mini dialog mock -->
+  <rect x="620" y="538" width="232" height="48" fill="#0e1013" stroke="#6b5423" stroke-width="1"/>
+  <rect x="632" y="548" width="96" height="28" fill="none" stroke="#737d8a" stroke-width="1"/>
+  <text x="680" y="567" text-anchor="middle" font-size="15" fill="#a9b2bd">Yes</text>
+  <rect x="744" y="548" width="96" height="28" fill="#f2a83b"/>
+  <text x="792" y="567" text-anchor="middle" font-size="15" font-weight="bold" fill="#201a0e">No</text>
+
+  <text x="736" y="614" text-anchor="middle" font-size="15" fill="#9a8f77">defaults to NO</text>
+  <text x="736" y="636" text-anchor="middle" font-size="15" fill="#9a8f77">auto-deny after 60 s</text>
+
+  <!-- gate fork -->
+  <g shape-rendering="auto">
+    <path d="M 736 660 V 694" fill="none" stroke="#8b95a3" stroke-width="2"/>
+    <circle cx="736" cy="694" r="4" fill="#8b95a3"/>
+    <path d="M 736 694 H 452 V 722" fill="none" stroke="#e0645f" stroke-width="2"/>
+    <polygon points="447,711 457,711 452,722" fill="#e0645f"/>
+    <path d="M 736 694 V 722" fill="none" stroke="#f2a83b" stroke-width="2"/>
+    <polygon points="731,711 741,711 736,722" fill="#f2a83b"/>
+  </g>
+  <text x="594" y="684" text-anchor="middle" font-size="15" fill="#e0645f">denied / timeout</text>
+  <text x="750" y="710" font-size="15" fill="#f2a83b">approved</text>
+
+  <!-- outcomes -->
+  <rect x="322" y="722" width="260" height="76" fill="#1c2027" stroke="#6b3330" stroke-width="1.5"/>
+  <text x="452" y="756" text-anchor="middle" font-size="19" font-weight="bold" fill="#e0645f">DENIED</text>
+  <text x="452" y="780" text-anchor="middle" font-size="15" fill="#737d8a">nothing executes</text>
+
+  <rect x="606" y="722" width="260" height="76" fill="#1c2027" stroke="#4f5866" stroke-width="1.5"/>
+  <text x="736" y="756" text-anchor="middle" font-size="17" font-weight="bold" fill="#eceef1">SHELL &#183; ADMIN/ROOT</text>
+  <text x="736" y="780" text-anchor="middle" font-size="15" fill="#a9b2bd">powershell &#183; bash &#183; zsh</text>
+
+  <!-- return trunk -->
+  <g shape-rendering="auto">
+    <path d="M 452 798 V 828 H 930 V 760" fill="none" stroke="#e0645f" stroke-width="2"/>
+    <path d="M 866 760 H 930 V 126 H 660" fill="none" stroke="#8b95a3" stroke-width="2"/>
+    <circle cx="930" cy="760" r="4" fill="#8b95a3"/>
+    <polygon points="671,121 671,131 660,126" fill="#8b95a3"/>
+  </g>
+  <text x="816" y="152" text-anchor="middle" font-size="15" fill="#a9b2bd">structured JSON result</text>
+  <text x="816" y="174" text-anchor="middle" font-size="15" fill="#737d8a">SUCCESS &#183; ERROR &#183; DENIED</text>
+
+</svg>

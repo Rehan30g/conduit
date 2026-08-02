@@ -248,9 +248,11 @@ class ApprovalDialog:
         ta.pack(fill=tk.BOTH, expand=True)  # mouse wheel still scrolls long commands
 
         # Keyboard shortcuts
+        # Escape denies, but there is deliberately no bare-letter accelerator for
+        # approve: the dialog forces itself topmost and steals focus, so a single
+        # stray keystroke while typing elsewhere could otherwise approve a root
+        # command. Approving has to be a click, or Enter on the focused button.
         self.root.bind("<Escape>", lambda e: self.deny())
-        self.root.bind("y", lambda e: self.approve())
-        self.root.bind("Y", lambda e: self.approve())
         self.root.bind("n", lambda e: self.deny())
         self.root.bind("N", lambda e: self.deny())
 
@@ -442,13 +444,33 @@ class _FlatButton:
         self.c.focus_set()
 
 
-def run_gui_prompt(command, shell, timeout=60):
+def annotate_request(command, cwd=None, env=None):
+    # The operator has to see everything that shapes execution, not just the
+    # command text. An env override like PATH, PATHEXT or LD_PRELOAD turns an
+    # innocuous-looking line into something else entirely, so approving a
+    # command without seeing them means approving something you cannot read.
+    parts = []
+    if cwd:
+        parts.append(f"[working directory]\n{cwd}")
+    if isinstance(env, dict) and env:
+        rendered = "\n".join(f"{k}={v}" for k, v in env.items())
+        parts.append(f"[environment overrides]\n{rendered}")
+    elif env:
+        parts.append(f"[environment overrides]\n{env}")
+    if not parts:
+        return command
+    parts.append(f"[command]\n{command}")
+    return "\n\n".join(parts)
+
+
+def run_gui_prompt(command, shell, timeout=60, cwd=None, env=None):
+    shown = annotate_request(command, cwd, env)
     try:
         import tkinter
-        return ApprovalDialog(command, shell, timeout).result
+        return ApprovalDialog(shown, shell, timeout).result
     except Exception as e:
         logging.warning(f"Tkinter unavailable ({e}). Trying platform fallback...")
-        return run_fallback_prompt(command, shell, timeout)
+        return run_fallback_prompt(shown, shell, timeout)
 
 
 def run_fallback_prompt(command, shell, timeout=60):

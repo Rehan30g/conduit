@@ -65,24 +65,43 @@ def execute_command(command, shell, cwd=None, env=None):
     if env:
         merged_env.update(env)
 
+    # subprocess only controls how *we* decode the bytes we get back; the
+    # child still chooses what bytes to write. PowerShell and cmd default to
+    # the legacy console codepage regardless of that decode setting, so
+    # UTF-8-decoding their raw output produces mojibake, not just a decode
+    # failure. Force each shell to write UTF-8 itself so the two sides agree.
+    utf8_preamble_ps = (
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+        "$OutputEncoding = [System.Text.Encoding]::UTF8; "
+    )
+
     if shell == "powershell":
-        args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command]
+        args = ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                utf8_preamble_ps + command]
     elif shell == "cmd":
-        args = ["cmd.exe", "/c", command]
+        args = ["cmd.exe", "/c", "chcp 65001>nul && " + command]
     elif shell == "pwsh":
-        args = ["pwsh", "-NoProfile", "-NonInteractive", "-Command", command]
+        args = ["pwsh", "-NoProfile", "-NonInteractive", "-Command",
+                utf8_preamble_ps + command]
     elif shell in AVAILABLE_SHELLS:
         args = [shell, "-c", command]
     else:
-        args = (["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command]
+        args = (["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                 utf8_preamble_ps + command]
                 if IS_WINDOWS else [DEFAULT_SHELL, "-c", command])
 
     t0 = time.time()
     try:
+        # errors="replace" remains a safety net for the POSIX shells, which
+        # depend on the ambient locale rather than anything set above.
         r = subprocess.run(args, cwd=cwd, env=merged_env,
-                           capture_output=True, text=True, timeout=300)
+                           capture_output=True, text=True, timeout=300,
+                           encoding="utf-8", errors="replace")
         ms = (time.time() - t0) * 1000
-        return "SUCCESS", r.stdout, r.stderr, ms, r.returncode
+        # A non-zero exit is a failure, as the docs have always claimed. Passing
+        # it off as SUCCESS tells the agent its install/service change worked.
+        status = "SUCCESS" if r.returncode == 0 else "ERROR"
+        return status, r.stdout, r.stderr, ms, r.returncode
     except subprocess.TimeoutExpired as e:
         ms = (time.time() - t0) * 1000
         return "ERROR", e.stdout or "", (e.stderr or "") + "\n[Process timed out — 5m limit]", ms, -1
@@ -105,7 +124,8 @@ def queue_worker():
             approved = True
             logging.info(f"[Engine] Auto-approved {req.id} via Always Allow session rule.")
         else:
-            prompt_res = run_gui_prompt(req.command, req.shell)
+            prompt_res = run_gui_prompt(req.command, req.shell,
+                                        cwd=req.cwd, env=req.env)
             if prompt_res == "ALWAYS":
                 src.config.ALWAYS_ALLOW = True
                 approved = True
