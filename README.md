@@ -41,7 +41,7 @@ Your AI connects either over plain HTTP or as an **MCP server** — see [Connect
 6. You approve or deny. Output returns to the agent in structured JSON — or `DENIED`, and nothing ran.
 
 <p align="center">
-  <img src="templates/screenshot_approval.png" width="560" alt="Conduit Approval Dialog">
+  <img src="templates/screenshot_approval_v2.png" width="560" alt="Conduit Approval Dialog">
 </p>
 
 ## Quick Start
