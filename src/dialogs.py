@@ -479,10 +479,23 @@ def run_fallback_prompt(command, shell, timeout=60):
             esc = command.replace('"', '\\"').replace('\n', '\\r')
             script = (
                 f'display dialog "Conduit Authorization\\r\\rShell: {shell}\\rCommand:\\r{esc}" '
-                f'with title "Conduit" buttons {{"No","Yes"}} default button "No" giving up after {timeout}'
+                f'with title "Conduit" buttons {{"Deny", "Always Allow", "Approve"}} default button "Deny" giving up after {timeout}'
             )
             r = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-            return "returned:Yes" in r.stdout
+            out = r.stdout or ""
+            if "returned:Approve" in out:
+                return True
+            elif "returned:Always Allow" in out:
+                confirm_script = (
+                    'display dialog "SECURITY WARNING\\r\\rEnable Always Allow?\\r\\r'
+                    'Every command from the AI agent will run this session WITHOUT showing authorization prompts again." '
+                    'with title "Security Warning" buttons {"Cancel", "Enable Always Allow"} default button "Cancel"'
+                )
+                cr = subprocess.run(["osascript", "-e", confirm_script], capture_output=True, text=True)
+                if "returned:Enable Always Allow" in cr.stdout:
+                    return "ALWAYS"
+                return False
+            return False
         except Exception:
             pass
 
@@ -492,9 +505,51 @@ def run_fallback_prompt(command, shell, timeout=60):
                 "zenity", "--question",
                 "--title=Conduit Authorization",
                 f"--text=Authorize command in {shell}?\n\n{command}",
+                "--ok-label=Approve",
+                "--cancel-label=Deny",
+                "--extra-button=Always Allow",
                 f"--timeout={timeout}"
-            ])
+            ], capture_output=True, text=True)
+            out = (r.stdout or "").strip()
+            if "Always Allow" in out:
+                confirm = subprocess.run([
+                    "zenity", "--warning",
+                    "--title=Security Warning",
+                    "--text=SECURITY WARNING: Enable Always Allow?\n\nEvery command from the AI agent will run this session WITHOUT showing authorization prompts again.\n\nOnly proceed if you fully trust the current agent.",
+                    "--ok-label=Enable Always Allow",
+                    "--cancel-label=Cancel"
+                ])
+                if confirm.returncode == 0:
+                    return "ALWAYS"
+                return False
             return r.returncode == 0
+        except Exception:
+            pass
+
+    if sys.platform.startswith("linux") and shutil.which("kdialog"):
+        try:
+            r = subprocess.run([
+                "kdialog", "--warningyesnocancel",
+                f"Authorize command in {shell}?\n\n{command}",
+                "--title", "Conduit Authorization",
+                "--yes-label", "Approve",
+                "--no-label", "Deny",
+                "--cancel-label", "Always Allow"
+            ])
+            if r.returncode == 0:
+                return True
+            elif r.returncode == 2:
+                c = subprocess.run([
+                    "kdialog", "--warningyesno",
+                    "SECURITY WARNING: Enable Always Allow?\n\nEvery command from the AI agent will run this session WITHOUT showing authorization prompts again.",
+                    "--title", "Security Warning",
+                    "--yes-label", "Enable Always Allow",
+                    "--no-label", "Cancel"
+                ])
+                if c.returncode == 0:
+                    return "ALWAYS"
+                return False
+            return False
         except Exception:
             pass
 
