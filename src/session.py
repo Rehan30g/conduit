@@ -1,54 +1,59 @@
-import os
 import json
-import time
-import logging
+import os
+from pathlib import Path
+import tempfile
 
-# The MCP bridge is spawned by the AI client as a separate process, so it cannot
-# inherit the token from the running daemon. The daemon publishes it here instead,
-# which keeps the client-side MCP config static even though the token rotates on
-# every restart.
-SESSION_DIR = os.path.join(os.path.expanduser("~"), ".conduit")
-SESSION_FILE = os.path.join(SESSION_DIR, "session.json")
+
+def get_session_file():
+    """Return the path to the session file."""
+    config_dir = Path.home() / ".conduit"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir / "session.json"
 
 
 def write_session(token, host, port):
-    """Publish the live session so local bridges can find the daemon."""
+    """Write session data atomically to prevent torn reads."""
     data = {
         "token": token,
         "host": host,
-        "port": port,
-        "pid": os.getpid(),
-        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "port": port
     }
+    
+    session_file = get_session_file()
+    
+    # Write to a temporary file in the same directory, then atomically rename
+    fd, temp_path = tempfile.mkstemp(
+        dir=session_file.parent,
+        prefix=".session_",
+        suffix=".json.tmp"
+    )
+    
     try:
-        os.makedirs(SESSION_DIR, exist_ok=True)
-        with open(SESSION_FILE, "w", encoding="utf-8") as f:
+        with os.fdopen(fd, 'w') as f:
             json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        
+        # Atomic rename (POSIX guarantees atomicity)
+        os.replace(temp_path, session_file)
+    except Exception:
+        # Clean up temp file on error
         try:
-            os.chmod(SESSION_FILE, 0o600)
-        except Exception:
-            pass  # Best effort — POSIX modes are only partially honoured on Windows.
-        return True
-    except Exception as e:
-        logging.error(f"[Session] Could not write session file: {e}")
-        return False
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
 
 
 def read_session():
-    """Return the published session dict, or None if Conduit is not running."""
-    try:
-        with open(SESSION_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not data.get("token") or not data.get("port"):
-            return None
-        return data
-    except Exception:
+    """Read session data from the session file."""
+    session_file = get_session_file()
+    
+    if not session_file.exists():
         return None
-
-
-def clear_session():
+    
     try:
-        if os.path.exists(SESSION_FILE):
-            os.remove(SESSION_FILE)
-    except Exception as e:
-        logging.error(f"[Session] Could not remove session file: {e}")
+        with open(session_file, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None
