@@ -197,6 +197,3 @@ Or have the AI visit `http://127.0.0.1:40404/agent.md`, which serves a fully sel
 - On Linux: `tkinter` via `sudo apt install python3-tk` (or `zenity` as fallback)
 - On macOS: `tkinter` is included; `osascript` used as fallback dialog
 
-## Credits
-
-Vibe coded by [@Rehan30g](https://github.com/Rehan30g) and Claude Opus 5.
