@@ -260,6 +260,33 @@ class ConduitHandler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             command = raw_body.decode("utf-8", errors="replace")
 
+        # A JSON body can put any type in these fields, but the engine assumes
+        # specific ones: command/shell get .strip()'d and handed to the shell as
+        # strings, cwd is passed to subprocess as a path, and env is fed straight
+        # into dict.update(). Two of those turn a malformed request into an
+        # uncaught exception:
+        #   - a non-string command hits AttributeError in command.strip() below;
+        #   - a non-dict env (e.g. {"env": "x"}) makes dict.update() raise
+        #     ValueError inside execute_command, *before* its try block, so the
+        #     exception unwinds the queue worker thread and kills it. Every later
+        #     command then just sits in the queue until the caller's 400 s wait
+        #     times out — the daemon is effectively dead with no error surfaced.
+        # Validate the shapes here and answer 400 instead of letting them through.
+        if not isinstance(command, str):
+            self.send_json(400, {"status": "ERROR", "message": "'command' must be a string."})
+            return
+        if not isinstance(shell, str):
+            self.send_json(400, {"status": "ERROR", "message": "'shell' must be a string."})
+            return
+        if cwd is not None and not isinstance(cwd, str):
+            self.send_json(400, {"status": "ERROR", "message": "'cwd' must be a string or null."})
+            return
+        if env is not None and not (isinstance(env, dict) and all(
+                isinstance(k, str) and isinstance(v, str) for k, v in env.items())):
+            self.send_json(400, {"status": "ERROR",
+                                 "message": "'env' must be an object mapping string keys to string values."})
+            return
+
         if not command.strip():
             self.send_json(400, {"status": "ERROR", "message": "Command is empty."})
             return
