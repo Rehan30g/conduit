@@ -282,20 +282,24 @@ class ConduitHandler(BaseHTTPRequestHandler):
         #     command then just sits in the queue until the caller's 400 s wait
         #     times out — the daemon is effectively dead with no error surfaced.
         # Validate the shapes here and answer 400 instead of letting them through.
-        if not isinstance(command, str):
-            self.send_json(400, {"status": "ERROR", "message": "'command' must be a string."})
-            return
-        if not isinstance(shell, str):
-            self.send_json(400, {"status": "ERROR", "message": "'shell' must be a string."})
-            return
-        if cwd is not None and not isinstance(cwd, str):
-            self.send_json(400, {"status": "ERROR", "message": "'cwd' must be a string or null."})
-            return
-        if env is not None and not (isinstance(env, dict) and all(
-                isinstance(k, str) and isinstance(v, str) for k, v in env.items())):
-            self.send_json(400, {"status": "ERROR",
-                                 "message": "'env' must be an object mapping string keys to string values."})
-            return
+        # Each entry is (value, is_valid, message). Same fields, same type
+        # checks, same 400 messages, checked in the same order as before —
+        # just table-driven so a new field is one line, not another block.
+        field_validations = [
+            (command, lambda v: isinstance(v, str),
+             "'command' must be a string."),
+            (shell, lambda v: isinstance(v, str),
+             "'shell' must be a string."),
+            (cwd, lambda v: v is None or isinstance(v, str),
+             "'cwd' must be a string or null."),
+            (env, lambda v: v is None or (isinstance(v, dict) and all(
+                isinstance(k, str) and isinstance(val, str) for k, val in v.items())),
+             "'env' must be an object mapping string keys to string values."),
+        ]
+        for value, is_valid, message in field_validations:
+            if not is_valid(value):
+                self.send_json(400, {"status": "ERROR", "message": message})
+                return
 
         if not command.strip():
             self.send_json(400, {"status": "ERROR", "message": "Command is empty."})
