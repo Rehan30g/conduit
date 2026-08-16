@@ -244,7 +244,17 @@ class ConduitHandler(BaseHTTPRequestHandler):
         if not self.check_auth():
             return
 
-        length = int(self.headers.get("Content-Length", 0))
+        # A client can send anything here; int() on a non-numeric Content-Length
+        # raises ValueError and would crash the handler and drop the connection.
+        # A negative value would make rfile.read() drain the whole stream. Reject
+        # both cleanly instead.
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            if length < 0:
+                raise ValueError("negative Content-Length")
+        except (TypeError, ValueError):
+            self.send_json(400, {"status": "ERROR", "message": "Invalid Content-Length header."})
+            return
         raw_body = self.rfile.read(length)
 
         command = ""; shell = DEFAULT_SHELL; cwd = None; env = None
