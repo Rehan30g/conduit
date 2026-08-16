@@ -118,51 +118,72 @@ def queue_worker():
         req = COMMAND_QUEUE.get()
         if req is None:
             break
-        logging.info(f"[Engine] Processing request {req.id} | shell={req.shell}")
+        # One malformed or buggy request must never take the worker down with
+        # it: if any step below raises, the thread would die and every later
+        # command would sit in the queue until the caller's timeout. Catch
+        # broadly, surface an error to *this* request, and keep looping.
+        try:
+            logging.info(f"[Engine] Processing request {req.id} | shell={req.shell}")
 
-        if src.config.ALWAYS_ALLOW:
-            approved = True
-            logging.info(f"[Engine] Auto-approved {req.id} via Always Allow session rule.")
-        else:
-            prompt_res = run_gui_prompt(req.command, req.shell,
-                                        cwd=req.cwd, env=req.env)
-            if prompt_res == "ALWAYS":
-                src.config.ALWAYS_ALLOW = True
+            if src.config.ALWAYS_ALLOW:
                 approved = True
-                logging.info(f"[Engine] Always Allow activated by user for this session.")
+                logging.info(f"[Engine] Auto-approved {req.id} via Always Allow session rule.")
             else:
-                approved = bool(prompt_res)
+                prompt_res = run_gui_prompt(req.command, req.shell,
+                                            cwd=req.cwd, env=req.env)
+                if prompt_res == "ALWAYS":
+                    src.config.ALWAYS_ALLOW = True
+                    approved = True
+                    logging.info(f"[Engine] Always Allow activated by user for this session.")
+                else:
+                    approved = bool(prompt_res)
 
-        if approved:
-            logging.info(f"[Engine] APPROVED {req.id}. Executing...")
-            status, stdout, stderr, ms, code = execute_command(
-                req.command, req.shell, req.cwd, req.env)
+            if approved:
+                logging.info(f"[Engine] APPROVED {req.id}. Executing...")
+                status, stdout, stderr, ms, code = execute_command(
+                    req.command, req.shell, req.cwd, req.env)
+                req.response = {
+                    "status": status,
+                    "request_id": req.id,
+                    "shell_used": req.shell,
+                    "exit_code": code,
+                    "output": stdout,
+                    "stderr": stderr,
+                    "duration_ms": ms,
+                }
+                logging.info(f"[Engine] Done {req.id} in {ms:.1f}ms (exit={code})")
+            else:
+                logging.info(f"[Engine] DENIED {req.id}")
+                req.response = {
+                    "status": "DENIED",
+                    "request_id": req.id,
+                    "shell_used": req.shell,
+                    "exit_code": -1,
+                    "output": "",
+                    "stderr": "Command denied by user.",
+                    "duration_ms": 0.0,
+                }
+
+            log_history(req.id, req.shell, req.command, req.response["status"],
+                        req.response["output"],
+                        req.response["stderr"] if req.response["status"] != "SUCCESS" else None,
+                        req.response["duration_ms"], req.response["exit_code"])
+        except Exception:
+            # exc_info=True keeps the traceback so the real bug is still
+            # diagnosable, even though we refuse to let it kill the worker.
+            logging.error(f"[Engine] Unexpected error while processing {req.id}; "
+                          f"worker stays alive.", exc_info=True)
             req.response = {
-                "status": status,
-                "request_id": req.id,
-                "shell_used": req.shell,
-                "exit_code": code,
-                "output": stdout,
-                "stderr": stderr,
-                "duration_ms": ms,
-            }
-            logging.info(f"[Engine] Done {req.id} in {ms:.1f}ms (exit={code})")
-        else:
-            logging.info(f"[Engine] DENIED {req.id}")
-            req.response = {
-                "status": "DENIED",
+                "status": "ERROR",
                 "request_id": req.id,
                 "shell_used": req.shell,
                 "exit_code": -1,
                 "output": "",
-                "stderr": "Command denied by user.",
+                "stderr": "Internal engine error while processing this command.",
                 "duration_ms": 0.0,
             }
-
-        log_history(req.id, req.shell, req.command, req.response["status"],
-                    req.response["output"],
-                    req.response["stderr"] if req.response["status"] != "SUCCESS" else None,
-                    req.response["duration_ms"], req.response["exit_code"])
-
-        req.event.set()
-        COMMAND_QUEUE.task_done()
+        finally:
+            # Always release the waiting caller and balance the get(), so a
+            # failed request returns promptly instead of hanging to timeout.
+            req.event.set()
+            COMMAND_QUEUE.task_done()
