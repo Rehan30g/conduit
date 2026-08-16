@@ -182,6 +182,18 @@ def queue_worker():
                 "stderr": "Internal engine error while processing this command.",
                 "duration_ms": 0.0,
             }
+            # Record the failure in history too. Without this, a caught engine
+            # error reaches the caller but never shows up in /history or
+            # conduit_history.jsonl, leaving the run invisible in the audit
+            # trail. Guard the call itself so history logging can never become
+            # the thing that finally kills the worker.
+            try:
+                log_history(req.id, req.shell, req.command, "ERROR", "",
+                            req.response["stderr"], 0.0, -1)
+            except Exception:
+                logging.error(f"[Engine] Failed to log_history for errored "
+                              f"request {req.id}; worker stays alive.",
+                              exc_info=True)
         finally:
             # Always release the waiting caller and balance the get(), so a
             # failed request returns promptly instead of hanging to timeout.
