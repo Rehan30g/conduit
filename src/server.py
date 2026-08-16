@@ -244,7 +244,17 @@ class ConduitHandler(BaseHTTPRequestHandler):
         if not self.check_auth():
             return
 
-        length = int(self.headers.get("Content-Length", 0))
+        # A client can send anything here; int() on a non-numeric Content-Length
+        # raises ValueError and would crash the handler and drop the connection.
+        # A negative value would make rfile.read() drain the whole stream. Reject
+        # both cleanly instead.
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            if length < 0:
+                raise ValueError("negative Content-Length")
+        except (TypeError, ValueError):
+            self.send_json(400, {"status": "ERROR", "message": "Invalid Content-Length header."})
+            return
         raw_body = self.rfile.read(length)
 
         command = ""; shell = DEFAULT_SHELL; cwd = None; env = None
@@ -259,6 +269,37 @@ class ConduitHandler(BaseHTTPRequestHandler):
                 command = str(body)
         except (ValueError, UnicodeDecodeError):
             command = raw_body.decode("utf-8", errors="replace")
+
+        # A JSON body can put any type in these fields, but the engine assumes
+        # specific ones: command/shell get .strip()'d and handed to the shell as
+        # strings, cwd is passed to subprocess as a path, and env is fed straight
+        # into dict.update(). Two of those turn a malformed request into an
+        # uncaught exception:
+        #   - a non-string command hits AttributeError in command.strip() below;
+        #   - a non-dict env (e.g. {"env": "x"}) makes dict.update() raise
+        #     ValueError inside execute_command, *before* its try block, so the
+        #     exception unwinds the queue worker thread and kills it. Every later
+        #     command then just sits in the queue until the caller's 400 s wait
+        #     times out — the daemon is effectively dead with no error surfaced.
+        # Validate the shapes here and answer 400 instead of letting them through.
+        # Each entry is (value, is_valid, message). Same fields, same type
+        # checks, same 400 messages, checked in the same order as before —
+        # just table-driven so a new field is one line, not another block.
+        field_validations = [
+            (command, lambda v: isinstance(v, str),
+             "'command' must be a string."),
+            (shell, lambda v: isinstance(v, str),
+             "'shell' must be a string."),
+            (cwd, lambda v: v is None or isinstance(v, str),
+             "'cwd' must be a string or null."),
+            (env, lambda v: v is None or (isinstance(v, dict) and all(
+                isinstance(k, str) and isinstance(val, str) for k, val in v.items())),
+             "'env' must be an object mapping string keys to string values."),
+        ]
+        for value, is_valid, message in field_validations:
+            if not is_valid(value):
+                self.send_json(400, {"status": "ERROR", "message": message})
+                return
 
         if not command.strip():
             self.send_json(400, {"status": "ERROR", "message": "Command is empty."})
