@@ -444,6 +444,17 @@ class _FlatButton:
         self.c.focus_set()
 
 
+def _escape_for_display(value):
+    # cwd/env come from the same untrusted caller as the command, and unlike the
+    # command they get rendered *above* it. A value containing "\n\n[command]\n..."
+    # would otherwise paint a fake [command] section before the real one, so a
+    # reviewer who doesn't scroll approves whatever fake command they see instead
+    # of what's actually about to run. Neutralizing embedded newlines means a
+    # value can never fabricate a new section boundary.
+    text = str(value).replace("\r\n", "\n").replace("\r", "\n")
+    return text.replace("\n", "\\n")
+
+
 def annotate_request(command, cwd=None, env=None):
     # The operator has to see everything that shapes execution, not just the
     # command text. An env override like PATH, PATHEXT or LD_PRELOAD turns an
@@ -451,12 +462,13 @@ def annotate_request(command, cwd=None, env=None):
     # command without seeing them means approving something you cannot read.
     parts = []
     if cwd:
-        parts.append(f"[working directory]\n{cwd}")
+        parts.append(f"[working directory]\n{_escape_for_display(cwd)}")
     if isinstance(env, dict) and env:
-        rendered = "\n".join(f"{k}={v}" for k, v in env.items())
+        rendered = "\n".join(f"{_escape_for_display(k)}={_escape_for_display(v)}"
+                             for k, v in env.items())
         parts.append(f"[environment overrides]\n{rendered}")
     elif env:
-        parts.append(f"[environment overrides]\n{env}")
+        parts.append(f"[environment overrides]\n{_escape_for_display(env)}")
     if not parts:
         return command
     parts.append(f"[command]\n{command}")
@@ -489,7 +501,8 @@ def run_fallback_prompt(command, shell, timeout=60):
                 confirm_script = (
                     'display dialog "SECURITY WARNING\\r\\rEnable Always Allow?\\r\\r'
                     'Every command from the AI agent will run this session WITHOUT showing authorization prompts again." '
-                    'with title "Security Warning" buttons {"Cancel", "Enable Always Allow"} default button "Cancel"'
+                    'with title "Security Warning" buttons {"Cancel", "Enable Always Allow"} default button "Cancel" '
+                    f'giving up after {timeout}'
                 )
                 cr = subprocess.run(["osascript", "-e", confirm_script], capture_output=True, text=True)
                 if "returned:Enable Always Allow" in cr.stdout:
@@ -517,7 +530,8 @@ def run_fallback_prompt(command, shell, timeout=60):
                     "--title=Security Warning",
                     "--text=SECURITY WARNING: Enable Always Allow?\n\nEvery command from the AI agent will run this session WITHOUT showing authorization prompts again.\n\nOnly proceed if you fully trust the current agent.",
                     "--ok-label=Enable Always Allow",
-                    "--cancel-label=Cancel"
+                    "--cancel-label=Cancel",
+                    f"--timeout={timeout}"
                 ])
                 if confirm.returncode == 0:
                     return "ALWAYS"
@@ -528,6 +542,9 @@ def run_fallback_prompt(command, shell, timeout=60):
 
     if sys.platform.startswith("linux") and shutil.which("kdialog"):
         try:
+            # kdialog has no native per-dialog timeout — a TimeoutExpired here falls
+            # through to the outer `except Exception`, which lands on the
+            # time-bounded terminal fallback below rather than hanging forever.
             r = subprocess.run([
                 "kdialog", "--warningyesnocancel",
                 f"Authorize command in {shell}?\n\n{command}",
@@ -535,17 +552,22 @@ def run_fallback_prompt(command, shell, timeout=60):
                 "--yes-label", "Approve",
                 "--no-label", "Deny",
                 "--cancel-label", "Always Allow"
-            ])
+            ], timeout=timeout)
             if r.returncode == 0:
                 return True
             elif r.returncode == 2:
-                c = subprocess.run([
-                    "kdialog", "--warningyesno",
-                    "SECURITY WARNING: Enable Always Allow?\n\nEvery command from the AI agent will run this session WITHOUT showing authorization prompts again.",
-                    "--title", "Security Warning",
-                    "--yes-label", "Enable Always Allow",
-                    "--no-label", "Cancel"
-                ])
+                # kdialog has no native per-dialog timeout, unlike the zenity/osascript
+                # confirms above — enforce one here so this can't hang forever either.
+                try:
+                    c = subprocess.run([
+                        "kdialog", "--warningyesno",
+                        "SECURITY WARNING: Enable Always Allow?\n\nEvery command from the AI agent will run this session WITHOUT showing authorization prompts again.",
+                        "--title", "Security Warning",
+                        "--yes-label", "Enable Always Allow",
+                        "--no-label", "Cancel"
+                    ], timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    return False
                 if c.returncode == 0:
                     return "ALWAYS"
                 return False
@@ -597,18 +619,23 @@ def run_terminal_fallback(command, shell, timeout):
         confirm_choice = "n"
         if IS_WINDOWS:
             chars = []
-            while True:
+            t1 = time.time()
+            while time.time() - t1 < timeout:
                 if msvcrt.kbhit():
                     c = msvcrt.getwche()
                     if c in ('\r', '\n'):
                         print(); break
                     chars.append(c)
                 time.sleep(0.1)
+            else:
+                print("\n[Timeout] Auto-denied.")
             confirm_choice = "".join(chars).strip().lower()
         else:
-            rlist, _, _ = select.select([sys.stdin], [], [], 30)
+            rlist, _, _ = select.select([sys.stdin], [], [], timeout)
             if rlist:
                 confirm_choice = sys.stdin.readline().strip().lower()
+            else:
+                print("\n[Timeout] Auto-denied.")
         if confirm_choice in ('y', 'yes'):
             return "ALWAYS"
     return False
