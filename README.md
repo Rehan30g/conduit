@@ -1,7 +1,7 @@
 # Conduit
 
 <p align="center">
-  <img src="templates/conduit.png" width="128" alt="Conduit Logo">
+  <img src="templates/conduit.png" width="128" alt="Conduit Icon">
 </p>
 
 **A human-approved admin channel for AI coding agents.**
